@@ -10,7 +10,7 @@ st.set_page_config(
 st.title("📊 Upgrade & Settlement Feasibility Calculator")
 st.markdown(
     "Ad-hoc calculator to check customer upgrade feasibility, buyout settlements,"
-    " and potential upsell margins."
+    " and true lease margins."
 )
 st.markdown("---")
 
@@ -100,9 +100,9 @@ with res_col3:
       help=f"{int(service_months)} months @ £{cost_services_monthly}/mo",
   )
 
-# --- SECTION 3: UPSELL FEASIBILITY ---
+# --- SECTION 3: UPSELL & LEASE FUND ---
 st.markdown("---")
-st.header("3. Upsell Feasibility & Potential Margin")
+st.header("3. Upsell Feasibility & Lease Fund")
 
 handset_count = st.number_input(
     "Number of Handsets", min_value=0, value=2, step=1
@@ -110,46 +110,89 @@ handset_count = st.number_input(
 handset_unit_price = 1500.0
 total_potential_finance = handset_count * handset_unit_price
 
-include_services_in_margin = st.checkbox(
-    "Include Services Buyout in Margin Calculation", value=False
+include_services_in_fund = st.checkbox(
+    "Include Services Buyout in Fund Deductions", value=False
 )
 
-# Determine what costs to subtract from potential finance
+# Determine what buyout costs to subtract from potential finance to get the Lease Fund
 services_cost_to_add = (
-    total_services_buyout if include_services_in_margin else 0.0
+    total_services_buyout if include_services_in_fund else 0.0
 )
 
-standard_total_cost = total_lease_buyout + services_cost_to_add
-discounted_total_cost = lease_buyout_70_reduction + services_cost_to_add
+standard_total_buyout = total_lease_buyout + services_cost_to_add
+discounted_total_buyout = lease_buyout_70_reduction + services_cost_to_add
 
-standard_margin = total_potential_finance - standard_total_cost
-discounted_margin = total_potential_finance - discounted_total_cost
+standard_lease_fund = total_potential_finance - standard_total_buyout
+discounted_lease_fund = total_potential_finance - discounted_total_buyout
 
 st.subheader(
     f"Total Potential Finance Value: £{total_potential_finance:,.2f} "
     f"({handset_count} handsets @ £{1500:,.0f} each)"
 )
 
-margin_col1, margin_col2 = st.columns(2)
+fund_col1, fund_col2 = st.columns(2)
 
-with margin_col1:
+with fund_col1:
   st.metric(
-      label="Estimated Margin (Standard Buyout)",
-      value=f"£{standard_margin:,.2f}",
+      label="Available Lease Fund (Standard Buyout)",
+      value=f"£{standard_lease_fund:,.2f}",
       help="Potential Finance minus Standard Lease Buyout"
-      + (" + Services Buyout" if include_services_in_margin else ""),
+      + (" + Services Buyout" if include_services_in_fund else ""),
   )
 
-with margin_col2:
+with fund_col2:
   st.metric(
-      label="Estimated Margin (70% Reduced Buyout)",
-      value=f"£{discounted_margin:,.2f}",
+      label="Available Lease Fund (70% Reduced Buyout)",
+      value=f"£{discounted_lease_fund:,.2f}",
       delta=(
-          f"+£{(standard_margin - discounted_margin):,.2f} saved"
-          if standard_margin != discounted_margin
+          f"+£{(standard_lease_fund - discounted_lease_fund):,.2f} saved"
+          if standard_lease_fund != discounted_lease_fund
           else None
       ),
       delta_color="normal",
       help="Potential Finance minus 70% Reduced Lease Buyout"
-      + (" + Services Buyout" if include_services_in_margin else ""),
+      + (" + Services Buyout" if include_services_in_fund else ""),
+  )
+
+# --- SECTION 4: NEW SOLUTION COSTS & TRUE LEASE MARGIN ---
+st.markdown("---")
+st.header("4. New Solution Costs & Net Lease Margin")
+
+new_solution_cost = st.number_input(
+    "Total Cost of New Solution (£)",
+    min_value=0.0,
+    value=500.0,
+    step=50.0,
+    help=(
+        "Enter hardware, setup, licensing, or other implementation costs for the"
+        " new solution"
+    ),
+)
+
+# Calculate final Net Lease Margin
+standard_net_margin = standard_lease_fund - new_solution_cost
+discounted_net_margin = discounted_lease_fund - new_solution_cost
+
+margin_col1, margin_col2 = st.columns(2)
+
+with margin_col1:
+  st.metric(
+      label="Net Lease Margin (Standard Buyout)",
+      value=f"£{standard_net_margin:,.2f}",
+      help="Available Lease Fund minus New Solution Costs",
+  )
+
+with margin_col2:
+  st.metric(
+      label="Net Lease Margin (70% Reduced Buyout)",
+      value=f"£{discounted_net_margin:,.2f}",
+      delta=(
+          f"+£{(standard_net_margin - discounted_net_margin):,.2f}"
+          if standard_net_margin != discounted_net_margin
+          else None
+      ),
+      delta_color="normal",
+      help=(
+          "Available Lease Fund (70% Reduced) minus New Solution Costs"
+      ),
   )
