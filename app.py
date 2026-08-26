@@ -1,4 +1,10 @@
+import io
+import json
 import streamlit as st
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 # Page configuration
 st.set_page_config(
@@ -14,45 +20,115 @@ st.markdown(
 )
 st.markdown("---")
 
+# --- SESSION STATE INITIALIZATION & LOAD/SAVE UTILITIES ---
+if "saved_data" not in st.session_state:
+  st.session_state.saved_data = None
+
+# Sidebar for Save / Load Session
+with st.sidebar:
+  st.header("📁 Session Management")
+  st.markdown("Save current calculation or load a previous session file.")
+
+  # Export current state to JSON
+  # We package current widget values into a dictionary
+  # (Note: Streamlit handles widgets via keys if initialized, but we can serialize input variables)
+
+# --- SECTION 0: CUSTOMER DETAILS & STATE LOAD/SAVE ---
+st.header("0. Customer & Session")
+col_cust1, col_cust2, col_cust3 = st.columns([2, 1, 1])
+
+with col_cust1:
+  customer_name = st.text_input(
+      "Customer / Company Name", value="", placeholder="e.g. Acme Corp Ltd"
+  )
+
+# File uploader to load previous JSON session
+with col_cust2:
+  uploaded_file = st.file_uploader("Load Saved Session (.json)", type=["json"])
+  if uploaded_file is not None:
+    try:
+      loaded_data = json.load(uploaded_file)
+      st.session_state.loaded_session = loaded_data
+      st.success("Session loaded successfully! Refresh or re-select if needed.")
+    except Exception as e:
+      st.error(f"Error loading file: {e}")
+
+# Retrieve default values if a session was loaded
+session_defaults = getattr(st, "_loaded_session_data", {})
+if (
+    "loaded_session" in st.session_state
+    and st.session_state.loaded_session != session_defaults
+):
+  session_defaults = st.session_state.loaded_session
+else:
+  session_defaults = {}
+
 # --- SECTION 1: AGREEMENT INPUTS ---
+st.markdown("---")
 st.header("1. Current Agreement Details")
 
 col1, col2 = st.columns(2)
 
 with col1:
   st.subheader("Lease Agreement")
+  default_lease_time = session_defaults.get("lease_time_val", 0.0)
+  default_lease_unit_idx = (
+      0 if session_defaults.get("lease_time_unit", "Months") == "Months" else 1
+  )
+  default_cost_lease = session_defaults.get("cost_lease_monthly", 0.0)
+
   lease_time_val = st.number_input(
-      "Remaining Time Value", min_value=0.0, value=0.0, step=1.0, key="lease_val"
+      "Remaining Time Value",
+      min_value=0.0,
+      value=float(default_lease_time),
+      step=1.0,
+      key="lease_val",
   )
   lease_time_unit = st.selectbox(
-      "Unit", ["Months", "Years"], key="lease_unit"
+      "Unit", ["Months", "Years"], index=default_lease_unit_idx, key="lease_unit"
   )
   cost_lease_monthly = st.number_input(
-      "Cost of Lease per Month (£)", min_value=0.0, value=0.0, step=10.0
+      "Cost of Lease per Month (£)",
+      min_value=0.0,
+      value=float(default_cost_lease),
+      step=10.0,
+      key="lease_cost_input",
   )
 
 with col2:
   st.subheader("Services Agreement")
-  copy_from_lease = st.checkbox("Copy time remaining from Lease", value=True)
+  copy_from_lease = st.checkbox(
+      "Copy time remaining from Lease",
+      value=session_defaults.get("copy_from_lease", True),
+  )
 
   if copy_from_lease:
     service_time_val = lease_time_val
     service_time_unit = lease_time_unit
     st.info(f"Using lease duration: {service_time_val} {service_time_unit}")
   else:
+    default_serv_time = session_defaults.get("service_time_val", 0.0)
+    default_serv_unit_idx = (
+        0 if session_defaults.get("service_time_unit", "Months") == "Months" else 1
+    )
     service_time_val = st.number_input(
         "Remaining Time Value",
         min_value=0.0,
-        value=0.0,
+        value=float(default_serv_time),
         step=1.0,
         key="serv_val",
     )
     service_time_unit = st.selectbox(
-        "Unit", ["Months", "Years"], key="serv_unit"
+        "Unit", ["Months", "Years"], index=default_serv_unit_idx, key="serv_unit"
     )
 
+  default_cost_serv = session_defaults.get("cost_services_monthly", 0.0)
   cost_services_monthly = st.number_input(
-      "Cost of Services per Month (£)", min_value=0.0, value=0.0, step=10.0
+      "Cost of Services per Month (£)",
+      min_value=0.0,
+      value=float(default_cost_serv),
+      step=10.0,
+      key="serv_cost_input",
   )
 
 # --- CONVERT TO MONTHS FOR CALCULATION ---
@@ -104,17 +180,23 @@ with res_col3:
 st.markdown("---")
 st.header("3. Upsell Feasibility & Lease Fund")
 
+default_handsets = session_defaults.get("handset_count", 0)
 handset_count = st.number_input(
-    "Number of Handsets", min_value=0, value=0, step=1
+    "Number of Handsets",
+    min_value=0,
+    value=int(default_handsets),
+    step=1,
+    key="handset_input",
 )
 handset_unit_price = 1500.0
 total_potential_finance = handset_count * handset_unit_price
 
 include_services_in_fund = st.checkbox(
-    "Include Services Buyout in Fund Deductions", value=False
+    "Include Services Buyout in Fund Deductions",
+    value=session_defaults.get("include_services_in_fund", False),
+    key="inc_serv_fund",
 )
 
-# Determine what buyout costs to subtract from potential finance to get the Lease Fund
 services_cost_to_add = (
     total_services_buyout if include_services_in_fund else 0.0
 )
@@ -158,18 +240,19 @@ with fund_col2:
 st.markdown("---")
 st.header("4. New Solution Costs & Net Lease Margin")
 
+default_new_cost = session_defaults.get("new_solution_cost", 0.0)
 new_solution_cost = st.number_input(
     "Total Cost of New Solution (£)",
     min_value=0.0,
-    value=0.0,
+    value=float(default_new_cost),
     step=50.0,
     help=(
         "Enter hardware, setup, licensing, or other implementation costs for the"
         " new solution"
     ),
+    key="new_cost_input",
 )
 
-# Calculate final Net Lease Margin
 standard_net_margin = standard_lease_fund - new_solution_cost
 discounted_net_margin = discounted_lease_fund - new_solution_cost
 
@@ -195,4 +278,125 @@ with margin_col2:
       help=(
           "Available Lease Fund (70% Reduced) minus New Solution Costs"
       ),
+  )
+
+# --- SECTION 5: EXPORT & SAVE SESSION ---
+st.markdown("---")
+st.header("5. Save & Export Report")
+
+current_state_dict = {
+    "customer_name": customer_name,
+    "lease_time_val": lease_time_val,
+    "lease_time_unit": lease_time_unit,
+    "cost_lease_monthly": cost_lease_monthly,
+    "copy_from_lease": copy_from_lease,
+    "service_time_val": service_time_val,
+    "service_time_unit": service_time_unit,
+    "cost_services_monthly": cost_services_monthly,
+    "handset_count": handset_count,
+    "include_services_in_fund": include_services_in_fund,
+    "new_solution_cost": new_solution_cost,
+}
+
+col_dl1, col_dl2 = st.columns(2)
+
+with col_dl1:
+  # JSON Save button
+  json_str = json.dumps(current_state_dict, indent=4)
+  safe_cust_filename = (
+      customer_name.strip().replace(" ", "_").lower()
+      if customer_name
+      else "upgrade_calc_session"
+  )
+  st.download_button(
+      label="💾 Save Session (Download JSON)",
+      data=json_str,
+      file_name=f"{safe_cust_filename}_session.json",
+      mime="application/json",
+  )
+
+
+with col_dl2:
+  # PDF Generation Function using ReportLab
+  def generate_pdf():
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
+    elements = []
+    styles = getSampleStyleSheet()
+
+    # Title Style
+    title_style = ParagraphStyle(
+        'TitleStyle',
+        parent=styles['Heading1'],
+        fontSize=18,
+        textColor=colors.HexColor('#1E3A8A'),
+        spaceAfter=6
+    )
+    subtitle_style = ParagraphStyle(
+        'SubTitleStyle',
+        parent=styles['Normal'],
+        fontSize=10,
+        textColor=colors.HexColor('#4B5563'),
+        spaceAfter=15
+    )
+    heading_style = ParagraphStyle(
+        'HeadingStyle',
+        parent=styles['Heading2'],
+        fontSize=12,
+        textColor=colors.HexColor('#1F2937'),
+        spaceBefore=10,
+        spaceAfter=6
+    )
+
+    elements.append(Paragraph("Upgrade & Settlement Feasibility Report", title_style))
+    cust_display = customer_name if customer_name else "Not Specified"
+    elements.append(Paragraph(f"<b>Customer:</b> {cust_display} | <b>Date:</b> 2026-08-26", subtitle_style))
+
+    # Summary Table Data
+    data = [
+        ["Agreement / Metric", "Details / Value"],
+        ["Lease Remaining", f"{lease_time_val} {lease_time_unit} @ £{cost_lease_monthly:,.2f}/mo"],
+        ["Total Lease Buyout", f"£{total_lease_buyout:,.2f}"],
+        ["Lease Buyout (70% Reduction)", f"£{lease_buyout_70_reduction:,.2f} (-70%)"],
+        ["Services Remaining", f"{service_time_val} {service_time_unit} @ £{cost_services_monthly:,.2f}/mo"],
+        ["Total Services Buyout", f"£{total_services_buyout:,.2f}"],
+        ["Potential Finance ({0} Handsets @ £1,500)".format(handset_count), f"£{total_potential_finance:,.2f}"],
+        ["Available Lease Fund (Standard)", f"£{standard_lease_fund:,.2f}"],
+        ["Available Lease Fund (70% Reduced)", f"£{discounted_lease_fund:,.2f}"],
+        ["New Solution Implementation Cost", f"£{new_solution_cost:,.2f}"],
+        ["Net Lease Margin (Standard Buyout)", f"£{standard_net_margin:,.2f}"],
+        ["Net Lease Margin (70% Reduced Buyout)", f"£{discounted_net_margin:,.2f}"],
+    ]
+
+    t = Table(data, colWidths=[240, 260])
+    t.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (1,0), colors.HexColor('#1E3A8A')),
+        ('TEXTCOLOR', (0,0), (1,0), colors.whitesmoke),
+        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,0), 10),
+        ('BOTTOMPADDING', (0,0), (-1,0), 8),
+        ('TOPPADDING', (0,0), (-1,0), 8),
+        ('BACKGROUND', (0,1), (-1,-1), colors.HexColor('#F9FAFB')),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#D1D5DB')),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#F3F4F6')]),
+        ('FONTNAME', (0,1), (-1,-1), 'Helvetica'),
+        ('FONTSIZE', (0,1), (-1,-1), 9),
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('BOTTOMPADDING', (0,1), (-1,-1), 6),
+        ('TOPPADDING', (0,1), (-1,-1), 6),
+    ]))
+
+    elements.append(t)
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer.getvalue()
+
+
+  pdf_data = generate_pdf()
+  st.download_button(
+      label="📄 Download PDF Report",
+      data=pdf_data,
+      file_name=f"{safe_cust_filename}_report.pdf",
+      mime="application/pdf",
   )
