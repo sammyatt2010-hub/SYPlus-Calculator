@@ -22,13 +22,13 @@ col1, col2 = st.columns(2)
 with col1:
   st.subheader("Lease Agreement")
   lease_time_val = st.number_input(
-      "Remaining Time Value", min_value=0.0, value=12.0, step=1.0, key="lease_val"
+      "Remaining Time Value", min_value=0.0, value=0.0, step=1.0, key="lease_val"
   )
   lease_time_unit = st.selectbox(
       "Unit", ["Months", "Years"], key="lease_unit"
   )
   cost_lease_monthly = st.number_input(
-      "Cost of Lease per Month (£)", min_value=0.0, value=100.0, step=10.0
+      "Cost of Lease per Month (£)", min_value=0.0, value=0.0, step=10.0
   )
 
 with col2:
@@ -43,7 +43,7 @@ with col2:
     service_time_val = st.number_input(
         "Remaining Time Value",
         min_value=0.0,
-        value=12.0,
+        value=0.0,
         step=1.0,
         key="serv_val",
     )
@@ -52,7 +52,7 @@ with col2:
     )
 
   cost_services_monthly = st.number_input(
-      "Cost of Services per Month (£)", min_value=0.0, value=50.0, step=10.0
+      "Cost of Services per Month (£)", min_value=0.0, value=0.0, step=10.0
   )
 
 # --- CONVERT TO MONTHS FOR CALCULATION ---
@@ -105,7 +105,7 @@ st.markdown("---")
 st.header("3. Upsell Feasibility & Lease Fund")
 
 handset_count = st.number_input(
-    "Number of Handsets", min_value=0, value=2, step=1
+    "Number of Handsets", min_value=0, value=0, step=1
 )
 handset_unit_price = 1500.0
 total_potential_finance = handset_count * handset_unit_price
@@ -161,7 +161,7 @@ st.header("4. New Solution Costs & Net Lease Margin")
 new_solution_cost = st.number_input(
     "Total Cost of New Solution (£)",
     min_value=0.0,
-    value=500.0,
+    value=0.0,
     step=50.0,
     help=(
         "Enter hardware, setup, licensing, or other implementation costs for the"
