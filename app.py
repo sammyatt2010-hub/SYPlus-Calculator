@@ -20,48 +20,33 @@ st.markdown(
 )
 st.markdown("---")
 
-# --- SESSION STATE INITIALIZATION & LOAD/SAVE UTILITIES ---
-if "saved_data" not in st.session_state:
-  st.session_state.saved_data = None
+# --- SESSION STATE INITIALIZATION FOR LOADED DATA ---
+if "loaded_session" not in st.session_state:
+  st.session_state.loaded_session = {}
 
-# Sidebar for Save / Load Session
-with st.sidebar:
-  st.header("📁 Session Management")
-  st.markdown("Save current calculation or load a previous session file.")
-
-  # Export current state to JSON
-  # We package current widget values into a dictionary
-  # (Note: Streamlit handles widgets via keys if initialized, but we can serialize input variables)
+session_defaults = st.session_state.loaded_session
 
 # --- SECTION 0: CUSTOMER DETAILS & STATE LOAD/SAVE ---
 st.header("0. Customer & Session")
-col_cust1, col_cust2, col_cust3 = st.columns([2, 1, 1])
+col_cust1, col_cust2 = st.columns([2, 1])
 
 with col_cust1:
   customer_name = st.text_input(
-      "Customer / Company Name", value="", placeholder="e.g. Acme Corp Ltd"
+      "Customer / Company Name",
+      value=session_defaults.get("customer_name", ""),
+      placeholder="e.g. Acme Corp Ltd",
   )
 
-# File uploader to load previous JSON session
 with col_cust2:
   uploaded_file = st.file_uploader("Load Saved Session (.json)", type=["json"])
   if uploaded_file is not None:
     try:
       loaded_data = json.load(uploaded_file)
       st.session_state.loaded_session = loaded_data
-      st.success("Session loaded successfully! Refresh or re-select if needed.")
+      st.success("Session loaded! Refreshing...")
+      st.rerun()
     except Exception as e:
       st.error(f"Error loading file: {e}")
-
-# Retrieve default values if a session was loaded
-session_defaults = getattr(st, "_loaded_session_data", {})
-if (
-    "loaded_session" in st.session_state
-    and st.session_state.loaded_session != session_defaults
-):
-  session_defaults = st.session_state.loaded_session
-else:
-  session_defaults = {}
 
 # --- SECTION 1: AGREEMENT INPUTS ---
 st.markdown("---")
@@ -176,6 +161,35 @@ with res_col3:
       help=f"{int(service_months)} months @ £{cost_services_monthly}/mo",
   )
 
+# --- HELPER FUNCTION FOR COLORED CARDS ---
+def render_colored_card(title, amount, help_text=""):
+  if amount < 0:
+    bg_color = "#FEE2E2"  # Light Red
+    border_color = "#EF4444"  # Red
+    text_color = "#991B1B"
+    status_label = "DEFICIT"
+  elif amount <= 3000:
+    bg_color = "#FEF3C7"  # Light Amber
+    border_color = "#F59E0B"  # Amber
+    text_color = "#92400E"
+    status_label = "TIGHT MARGIN"
+  else:
+    bg_color = "#D1FAE5"  # Light Green
+    border_color = "#10B981"  # Green
+    text_color = "#065F46"
+    status_label = "HEALTHY MARGIN"
+
+  card_html = f"""
+    <div style="background-color: {bg_color}; border: 2px solid {border_color}; border-radius: 8px; padding: 15px; margin-bottom: 10px;">
+        <span style="font-size: 13px; font-weight: bold; color: {text_color}; text-transform: uppercase;">{title}</span>
+        <h2 style="color: {text_color}; margin: 5px 0 5px 0;">£{amount:,.2f}</h2>
+        <span style="background-color: {border_color}; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold;">{status_label}</span>
+        {f'<p style="font-size: 11px; color: {text_color}; margin-top: 8px; margin-bottom: 0;">{help_text}</p>' if help_text else ''}
+    </div>
+    """
+  st.markdown(card_html, unsafe_allow_html=True)
+
+
 # --- SECTION 3: UPSELL & LEASE FUND ---
 st.markdown("---")
 st.header("3. Upsell Feasibility & Lease Fund")
@@ -215,25 +229,17 @@ st.subheader(
 fund_col1, fund_col2 = st.columns(2)
 
 with fund_col1:
-  st.metric(
-      label="Available Lease Fund (Standard Buyout)",
-      value=f"£{standard_lease_fund:,.2f}",
-      help="Potential Finance minus Standard Lease Buyout"
-      + (" + Services Buyout" if include_services_in_fund else ""),
+  render_colored_card(
+      "Available Lease Fund (Standard Buyout)",
+      standard_lease_fund,
+      "Potential Finance minus Standard Lease Buyout",
   )
 
 with fund_col2:
-  st.metric(
-      label="Available Lease Fund (70% Reduced Buyout)",
-      value=f"£{discounted_lease_fund:,.2f}",
-      delta=(
-          f"+£{(standard_lease_fund - discounted_lease_fund):,.2f} saved"
-          if standard_lease_fund != discounted_lease_fund
-          else None
-      ),
-      delta_color="normal",
-      help="Potential Finance minus 70% Reduced Lease Buyout"
-      + (" + Services Buyout" if include_services_in_fund else ""),
+  render_colored_card(
+      "Available Lease Fund (70% Reduced Buyout)",
+      discounted_lease_fund,
+      "Potential Finance minus 70% Reduced Lease Buyout",
   )
 
 # --- SECTION 4: NEW SOLUTION COSTS & TRUE LEASE MARGIN ---
@@ -259,25 +265,17 @@ discounted_net_margin = discounted_lease_fund - new_solution_cost
 margin_col1, margin_col2 = st.columns(2)
 
 with margin_col1:
-  st.metric(
-      label="Net Lease Margin (Standard Buyout)",
-      value=f"£{standard_net_margin:,.2f}",
-      help="Available Lease Fund minus New Solution Costs",
+  render_colored_card(
+      "Net Lease Margin (Standard Buyout)",
+      standard_net_margin,
+      "Available Lease Fund minus New Solution Costs",
   )
 
 with margin_col2:
-  st.metric(
-      label="Net Lease Margin (70% Reduced Buyout)",
-      value=f"£{discounted_net_margin:,.2f}",
-      delta=(
-          f"+£{(standard_net_margin - discounted_net_margin):,.2f}"
-          if standard_net_margin != discounted_net_margin
-          else None
-      ),
-      delta_color="normal",
-      help=(
-          "Available Lease Fund (70% Reduced) minus New Solution Costs"
-      ),
+  render_colored_card(
+      "Net Lease Margin (70% Reduced Buyout)",
+      discounted_net_margin,
+      "Available Lease Fund (70% Reduced) minus New Solution Costs",
   )
 
 # --- SECTION 5: EXPORT & SAVE SESSION ---
@@ -301,7 +299,6 @@ current_state_dict = {
 col_dl1, col_dl2 = st.columns(2)
 
 with col_dl1:
-  # JSON Save button
   json_str = json.dumps(current_state_dict, indent=4)
   safe_cust_filename = (
       customer_name.strip().replace(" ", "_").lower()
@@ -315,77 +312,111 @@ with col_dl1:
       mime="application/json",
   )
 
-
 with col_dl2:
-  # PDF Generation Function using ReportLab
+
   def generate_pdf():
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=36,
+        leftMargin=36,
+        topMargin=36,
+        bottomMargin=36,
+    )
     elements = []
     styles = getSampleStyleSheet()
 
-    # Title Style
     title_style = ParagraphStyle(
-        'TitleStyle',
-        parent=styles['Heading1'],
+        "TitleStyle",
+        parent=styles["Heading1"],
         fontSize=18,
-        textColor=colors.HexColor('#1E3A8A'),
-        spaceAfter=6
+        textColor=colors.HexColor("#1E3A8A"),
+        spaceAfter=6,
     )
     subtitle_style = ParagraphStyle(
-        'SubTitleStyle',
-        parent=styles['Normal'],
+        "SubTitleStyle",
+        parent=styles["Normal"],
         fontSize=10,
-        textColor=colors.HexColor('#4B5563'),
-        spaceAfter=15
-    )
-    heading_style = ParagraphStyle(
-        'HeadingStyle',
-        parent=styles['Heading2'],
-        fontSize=12,
-        textColor=colors.HexColor('#1F2937'),
-        spaceBefore=10,
-        spaceAfter=6
+        textColor=colors.HexColor("#4B5563"),
+        spaceAfter=15,
     )
 
-    elements.append(Paragraph("Upgrade & Settlement Feasibility Report", title_style))
+    elements.append(
+        Paragraph("Upgrade & Settlement Feasibility Report", title_style)
+    )
     cust_display = customer_name if customer_name else "Not Specified"
-    elements.append(Paragraph(f"<b>Customer:</b> {cust_display} | <b>Date:</b> 2026-08-26", subtitle_style))
+    elements.append(
+        Paragraph(
+            f"<b>Customer:</b> {cust_display} | <b>Date:</b> 2026-08-26",
+            subtitle_style,
+        )
+    )
 
-    # Summary Table Data
     data = [
         ["Agreement / Metric", "Details / Value"],
-        ["Lease Remaining", f"{lease_time_val} {lease_time_unit} @ £{cost_lease_monthly:,.2f}/mo"],
+        [
+            "Lease Remaining",
+            (
+                f"{lease_time_val} {lease_time_unit} @"
+                f" £{cost_lease_monthly:,.2f}/mo"
+            ),
+        ],
         ["Total Lease Buyout", f"£{total_lease_buyout:,.2f}"],
-        ["Lease Buyout (70% Reduction)", f"£{lease_buyout_70_reduction:,.2f} (-70%)"],
-        ["Services Remaining", f"{service_time_val} {service_time_unit} @ £{cost_services_monthly:,.2f}/mo"],
+        (
+            "Lease Buyout (70% Reduction)",
+            f"£{lease_buyout_70_reduction:,.2f} (-70%)",
+        ),
+        [
+            "Services Remaining",
+            (
+                f"{service_time_val} {service_time_unit} @"
+                f" £{cost_services_monthly:,.2f}/mo"
+            ),
+        ],
         ["Total Services Buyout", f"£{total_services_buyout:,.2f}"],
-        ["Potential Finance ({0} Handsets @ £1,500)".format(handset_count), f"£{total_potential_finance:,.2f}"],
+        [
+            "Potential Finance ({0} Handsets @ £1,500)".format(handset_count),
+            f"£{total_potential_finance:,.2f}",
+        ],
         ["Available Lease Fund (Standard)", f"£{standard_lease_fund:,.2f}"],
-        ["Available Lease Fund (70% Reduced)", f"£{discounted_lease_fund:,.2f}"],
+        (
+            "Available Lease Fund (70% Reduced)",
+            f"£{discounted_lease_fund:,.2f}",
+        ),
         ["New Solution Implementation Cost", f"£{new_solution_cost:,.2f}"],
         ["Net Lease Margin (Standard Buyout)", f"£{standard_net_margin:,.2f}"],
-        ["Net Lease Margin (70% Reduced Buyout)", f"£{discounted_net_margin:,.2f}"],
+        (
+            "Net Lease Margin (70% Reduced Buyout)",
+            f"£{discounted_net_margin:,.2f}",
+        ),
     ]
 
     t = Table(data, colWidths=[240, 260])
-    t.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (1,0), colors.HexColor('#1E3A8A')),
-        ('TEXTCOLOR', (0,0), (1,0), colors.whitesmoke),
-        ('ALIGN', (0,0), (-1,-1), 'LEFT'),
-        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0,0), (-1,0), 10),
-        ('BOTTOMPADDING', (0,0), (-1,0), 8),
-        ('TOPPADDING', (0,0), (-1,0), 8),
-        ('BACKGROUND', (0,1), (-1,-1), colors.HexColor('#F9FAFB')),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#D1D5DB')),
-        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#F3F4F6')]),
-        ('FONTNAME', (0,1), (-1,-1), 'Helvetica'),
-        ('FONTSIZE', (0,1), (-1,-1), 9),
-        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('BOTTOMPADDING', (0,1), (-1,-1), 6),
-        ('TOPPADDING', (0,1), (-1,-1), 6),
-    ]))
+    t.setStyle(
+        TableStyle([
+            ("BACKGROUND", (0, 0), (1, 0), colors.HexColor("#1E3A8A")),
+            ("TEXTCOLOR", (0, 0), (1, 0), colors.whitesmoke),
+            ("ALIGN", (0, 0), (-1, -1), "LEFT"),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, 0), 10),
+            ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
+            ("TOPPADDING", (0, 0), (-1, 0), 8),
+            ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#F9FAFB")),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#D1D5DB")),
+            (
+                "ROWBACKGROUNDS",
+                (0, 1),
+                (-1, -1),
+                [colors.white, colors.HexColor("#F3F4F6")],
+            ),
+            ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+            ("FONTSIZE", (0, 1), (-1, -1), 9),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("BOTTOMPADDING", (0, 1), (-1, -1), 6),
+            ("TOPPADDING", (0, 1), (-1, -1), 6),
+        ])
+    )
 
     elements.append(t)
     doc.build(elements)
