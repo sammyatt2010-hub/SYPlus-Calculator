@@ -9,7 +9,8 @@ st.set_page_config(
 
 st.title("📊 Upgrade & Settlement Feasibility Calculator")
 st.markdown(
-    "Ad-hoc calculator to check customer upgrade feasibility, buyout settlements, and potential upsell margins."
+    "Ad-hoc calculator to check customer upgrade feasibility, buyout settlements,"
+    " and potential upsell margins."
 )
 st.markdown("---")
 
@@ -126,7 +127,7 @@ discounted_margin = total_potential_finance - discounted_total_cost
 
 st.subheader(
     f"Total Potential Finance Value: £{total_potential_finance:,.2f} "
-    f"({handset_count} handsets @ £{1,500:,.0f} each)"
+    f"({handset_count} handsets @ £{1500:,.0f} each)"
 )
 
 margin_col1, margin_col2 = st.columns(2)
