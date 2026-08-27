@@ -161,6 +161,7 @@ with res_col3:
       help=f"{int(service_months)} months @ £{cost_services_monthly}/mo",
   )
 
+
 # --- HELPER FUNCTION FOR COLORED CARDS ---
 def render_colored_card(title, amount, help_text=""):
   if amount < 0:
@@ -239,28 +240,48 @@ with fund_col2:
   render_colored_card(
       "Available Lease Fund (70% Reduced Buyout)",
       discounted_lease_fund,
-      "Potential Finance minus 70% Reduced Lease Buyout",
+      "Potential Finance minus 70% Reduced Buyout",
   )
 
-# --- SECTION 4: NEW SOLUTION COSTS & TRUE LEASE MARGIN ---
+# --- SECTION 4: NEW SOLUTION DEAL TERMS & NET LEASE MARGIN ---
 st.markdown("---")
-st.header("4. New Solution Costs & Net Lease Margin")
+st.header("4. New Solution Deal Terms & Net Lease Margin")
 
-default_new_cost = session_defaults.get("new_solution_cost", 0.0)
-new_solution_cost = st.number_input(
-    "Total Cost of New Solution (£)",
-    min_value=0.0,
-    value=float(default_new_cost),
-    step=50.0,
-    help=(
-        "Enter hardware, setup, licensing, or other implementation costs for the"
-        " new solution"
-    ),
-    key="new_cost_input",
+col_new1, col_new2 = st.columns(2)
+
+with col_new1:
+  default_new_monthly = session_defaults.get("new_monthly_price", 0.0)
+  new_monthly_price = st.number_input(
+      "New Deal Monthly Price (£)",
+      min_value=0.0,
+      value=float(default_new_monthly),
+      step=10.0,
+      key="new_monthly_input",
+      help="Enter the monthly cost charged to the customer for the new solution",
+  )
+
+with col_new2:
+  default_new_term = session_defaults.get("new_contract_term_years", 3.0)
+  new_contract_term_years = st.number_input(
+      "New Contract Term (Years)",
+      min_value=0.0,
+      value=float(default_new_term),
+      step=1.0,
+      key="new_term_input",
+      help="Enter the contract length in years (e.g., 3 or 5 years)",
+  )
+
+# Calculate total solution cost automatically from monthly price * term (in months)
+total_new_solution_cost = new_monthly_price * (new_contract_term_years * 12)
+
+st.info(
+    f"Calculated Total New Solution Value: **£{total_new_solution_cost:,.2f}**"
+    f" ({int(new_contract_term_years * 12)} months @"
+    f" £{new_monthly_price:,.2f}/mo)"
 )
 
-standard_net_margin = standard_lease_fund - new_solution_cost
-discounted_net_margin = discounted_lease_fund - new_solution_cost
+standard_net_margin = standard_lease_fund - total_new_solution_cost
+discounted_net_margin = discounted_lease_fund - total_new_solution_cost
 
 margin_col1, margin_col2 = st.columns(2)
 
@@ -268,14 +289,14 @@ with margin_col1:
   render_colored_card(
       "Net Lease Margin (Standard Buyout)",
       standard_net_margin,
-      "Available Lease Fund minus New Solution Costs",
+      "Available Lease Fund minus Total New Solution Value",
   )
 
 with margin_col2:
   render_colored_card(
       "Net Lease Margin (70% Reduced Buyout)",
       discounted_net_margin,
-      "Available Lease Fund (70% Reduced) minus New Solution Costs",
+      "Available Lease Fund (70% Reduced) minus Total New Solution Value",
   )
 
 # --- SECTION 5: EXPORT & SAVE SESSION ---
@@ -293,7 +314,8 @@ current_state_dict = {
     "cost_services_monthly": cost_services_monthly,
     "handset_count": handset_count,
     "include_services_in_fund": include_services_in_fund,
-    "new_solution_cost": new_solution_cost,
+    "new_monthly_price": new_monthly_price,
+    "new_contract_term_years": new_contract_term_years,
 }
 
 col_dl1, col_dl2 = st.columns(2)
@@ -348,7 +370,7 @@ with col_dl2:
     cust_display = customer_name if customer_name else "Not Specified"
     elements.append(
         Paragraph(
-            f"<b>Customer:</b> {cust_display} | <b>Date:</b> 2026-08-26",
+            f"<b>Customer:</b> {cust_display} | <b>Date:</b> 2026-08-27",
             subtitle_style,
         )
     )
@@ -384,7 +406,17 @@ with col_dl2:
             "Available Lease Fund (70% Reduced)",
             f"£{discounted_lease_fund:,.2f}",
         ),
-        ["New Solution Implementation Cost", f"£{new_solution_cost:,.2f}"],
+        [
+            "New Solution Deal Terms",
+            (
+                f"£{new_monthly_price:,.2f}/mo for"
+                f" {new_contract_term_years} years"
+            ),
+        ],
+        [
+            "Total New Solution Cost",
+            f"£{total_new_solution_cost:,.2f}",
+        ],
         ["Net Lease Margin (Standard Buyout)", f"£{standard_net_margin:,.2f}"],
         (
             "Net Lease Margin (70% Reduced Buyout)",
